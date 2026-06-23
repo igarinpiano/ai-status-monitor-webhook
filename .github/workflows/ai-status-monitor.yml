@@ -1,0 +1,45 @@
+name: AI Status Monitor
+
+on:
+  schedule:
+    # UTC で 5 分ごとに実行 (GitHub Actions の最短間隔)
+    # 日本時間 = UTC+9 なので、JST 9:00〜は UTC 0:00〜
+    - cron: '*/5 * * * *'
+  workflow_dispatch: # GitHub 画面から手動実行ボタンを有効化
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      # ── リポジトリをチェックアウト ───────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # ── Python セットアップ ──────────────────────────────
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      # ── 前回ステータスのキャッシュを復元 ─────────────────
+      # キーに run_id を含めることで毎回必ず新しいキャッシュを作成しつつ、
+      # restore-keys で最新の既存キャッシュを復元する
+      - name: Restore status state cache
+        uses: actions/cache@v5
+        with:
+          path: ai_status_state.json
+          key: ai-status-state-${{ github.run_id }}
+          restore-keys: |
+            ai-status-state-
+
+      # ── 監視スクリプト実行 ───────────────────────────────
+      - name: Run status monitor
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python monitor.py
